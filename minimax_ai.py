@@ -9,6 +9,10 @@ class MiniMaxAI:
         if depth == max_depth:
             return 0 
 
+        # Debug: Kiírjuk az aktuális táblaállapotot
+        print(f"Depth: {depth}, Is Maximizing: {is_maximizing}")
+        #print("Current Board State:")
+        #print([board[i:i+3] for i in range(0, len(board), 3)])  # 3x3-as formátumban jelenítjük meg
 
         winner = self.check_winner(board)
         if winner == self.player:
