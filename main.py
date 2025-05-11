@@ -4,6 +4,9 @@
 
 from tkinter import *
 import numpy as np
+import time
+
+from minimax_ai import MiniMaxAI
 
 size_of_board = 600
 symbol_size = (size_of_board / 3 - size_of_board / 8) / 2
@@ -20,7 +23,7 @@ class Tic_Tac_Toe():
     def __init__(self):
         self.window = Tk()
         self.window.title('Tic-Tac-Toe')
-        self.canvas = Canvas(self.window, width=size_of_board, height=size_of_board)
+        self.canvas = Canvas(self.window, width=size_of_board+100, height=size_of_board+100)
         self.canvas.pack()
         # Input from user in form of clicks
         self.window.bind('<Button-1>', self.click)
@@ -40,6 +43,9 @@ class Tic_Tac_Toe():
         self.O_score = 0
         self.tie_score = 0
 
+        # Inicializáljuk az AI-t
+        self.ai = MiniMaxAI(player=1, opponent=-1)
+
     def mainloop(self):
         self.window.mainloop()
 
@@ -52,7 +58,7 @@ class Tic_Tac_Toe():
 
     def play_again(self):
         self.initialize_board()
-        self.player_X_starts = not self.player_X_starts
+        self.player_X_starts = True
         self.player_X_turns = self.player_X_starts
         self.board_status = np.zeros(shape=(3, 3))
 
@@ -71,6 +77,7 @@ class Tic_Tac_Toe():
                                 outline=symbol_O_color)
 
     def draw_X(self, logical_position):
+        print(logical_position)
         grid_position = self.convert_logical_to_grid_position(logical_position)
         self.canvas.create_line(grid_position[0] - symbol_size, grid_position[1] - symbol_size,
                                 grid_position[0] + symbol_size, grid_position[1] + symbol_size, width=symbol_thickness,
@@ -80,14 +87,13 @@ class Tic_Tac_Toe():
                                 fill=symbol_X_color)
 
     def display_gameover(self):
-
         if self.X_wins:
             self.X_score += 1
             text = 'Winner: Player 1 (X)'
             color = symbol_X_color
         elif self.O_wins:
             self.O_score += 1
-            text = 'Winner: Player 2 (O)'
+            text = 'Winner: Ai (O)'
             color = symbol_O_color
         else:
             self.tie_score += 1
@@ -95,22 +101,23 @@ class Tic_Tac_Toe():
             color = 'gray'
 
         self.canvas.delete("all")
-        self.canvas.create_text(size_of_board / 2, size_of_board / 3, font="cmr 60 bold", fill=color, text=text)
+        self.canvas.create_text(size_of_board / 2, size_of_board / 3, font="cmr 40 bold", fill=color, text=text)
 
         score_text = 'Scores \n'
         self.canvas.create_text(size_of_board / 2, 5 * size_of_board / 8, font="cmr 40 bold", fill=Green_color,
                                 text=score_text)
 
-        score_text = 'Player 1 (X) : ' + str(self.X_score) + '\n'
-        score_text += 'Player 2 (O): ' + str(self.O_score) + '\n'
-        score_text += 'Tie                    : ' + str(self.tie_score)
+        score_text = f'Player 1 (X): {self.X_score}\n'
+        score_text += f'Player 2 (O): {self.O_score}\n'
+        score_text += f'Tie: {self.tie_score}'
         self.canvas.create_text(size_of_board / 2, 3 * size_of_board / 4, font="cmr 30 bold", fill=Green_color,
                                 text=score_text)
-        self.reset_board = True
 
-        score_text = 'Click to play again \n'
+        score_text = 'Click to play again'
         self.canvas.create_text(size_of_board / 2, 15 * size_of_board / 16, font="cmr 20 bold", fill="gray",
                                 text=score_text)
+
+        self.reset_board = True  # Engedélyezzük az újraindítást kattintásra
 
     # ------------------------------------------------------------------
     # Logical Functions:
@@ -135,7 +142,7 @@ class Tic_Tac_Toe():
 
         player = -1 if player == 'X' else 1
 
-        # Three in a row
+         # Three in a row
         for i in range(3):
             if self.board_status[i][0] == self.board_status[i][1] == self.board_status[i][2] == player:
                 return True
@@ -150,6 +157,20 @@ class Tic_Tac_Toe():
             return True
 
         return False
+    
+        # winning_combinations = [
+        #     [0, 1, 2], [3, 4, 5], [6, 7, 8],  # Rows
+        #     [0, 3, 6], [1, 4, 7], [2, 5, 8],  # Columns
+        #     [0, 4, 8], [2, 4, 6]              # Diagonals
+        # ]
+
+        # flat = self.board_status.flatten()
+        # for combo in winning_combinations:
+        #     if flat[combo[0]] == flat[combo[1]] == flat[combo[2]] and flat[combo[0]] is not None:
+        #         print(flat[combo[0]])
+        #         return flat[combo[0]]
+        # return None
+    # X = -1, 0 = 1
 
     def is_tie(self):
 
@@ -161,28 +182,25 @@ class Tic_Tac_Toe():
         return tie
 
     def is_gameover(self):
-        # Either someone wins or all grid occupied
+
+        # if (self.is_winner('X') == 1):
+        #     print('O wins')
+        #     #self.O_wins = self.is_winner('O')
+
+        # elif(self.is_winner('X') == -1):
+        #     #self.X_wins = -1
+        #     print('X wins')
+
         self.X_wins = self.is_winner('X')
         if not self.X_wins:
-            self.O_wins = self.is_winner('O')
+           self.O_wins = self.is_winner('O')
 
         if not self.O_wins:
             self.tie = self.is_tie()
 
         gameover = self.X_wins or self.O_wins or self.tie
 
-        if self.X_wins:
-            print('X wins')
-        if self.O_wins:
-            print('O wins')
-        if self.tie:
-            print('Its a tie')
-
         return gameover
-
-
-
-
 
     def click(self, event):
         grid_position = [event.x, event.y]
@@ -194,16 +212,27 @@ class Tic_Tac_Toe():
                     self.draw_X(logical_position)
                     self.board_status[logical_position[0]][logical_position[1]] = -1
                     self.player_X_turns = not self.player_X_turns
-            else:
-                if not self.is_grid_occupied(logical_position):
+                    self.window.update_idletasks()  # Vászon frissítése a játékos lépése után
+
+            # AI lépése
+            if not self.player_X_turns and not self.reset_board:
+                flat_board = [
+                    None if cell == 0 else (1 if cell == 1 else -1)
+                    for cell in self.board_status.flatten()
+                ]
+                best_move = self.ai.find_best_move(flat_board)
+                if best_move is not None:
+                    logical_position = divmod(best_move, 3)  # Átalakítjuk a lineáris indexet 2D pozícióvá
                     self.draw_O(logical_position)
                     self.board_status[logical_position[0]][logical_position[1]] = 1
                     self.player_X_turns = not self.player_X_turns
+                    self.window.update_idletasks()  # Vászon frissítése az AI lépése után
 
-            # Check if game is concluded
+            # Ellenőrizzük, hogy vége van-e a játéknak
             if self.is_gameover():
+                self.window.update_idletasks()  # Vászon frissítése az utolsó lépés megjelenítéséhez
+                time.sleep(2)  # Várjunk 2 másodpercet, hogy a felhasználó láthassa az utolsó állapotot
                 self.display_gameover()
-                # print('Done')
         else:  # Play Again
             self.canvas.delete("all")
             self.play_again()
