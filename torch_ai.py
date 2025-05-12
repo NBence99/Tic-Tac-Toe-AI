@@ -17,11 +17,18 @@ class TicTacToeAI(nn.Module):
         x = self.fc3(x)  # Output layer (no activation, raw scores)
         return x
 
-def choose_move(ai, state, epsilon=0.1):
+def choose_move(ai, state, epsilon=0.5, criterion=None):
     state_tensor = torch.FloatTensor(state).unsqueeze(0)
     with torch.no_grad():
         output = ai(state_tensor)
-    
+
+
+    if criterion is not None:
+        target = torch.zeros(9)  
+        target_tensor = target.unsqueeze(0)
+        loss = criterion(output, target_tensor)
+
+
     # Epsilon-greedy stratégia
     if np.random.rand() < epsilon:
         # Véletlenszerű lépés
@@ -45,7 +52,7 @@ def train_ai(ai, optimizer, criterion, game_data, epochs=1000):
     for epoch in range(epochs):
         total_loss = 0
         for state, action, reward in game_data:
-            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            state_tensor = torch.FloatFloat(state).unsqueeze(0)
             target = torch.zeros(9)
             if action is not None:
                 target[action] = reward
@@ -70,10 +77,6 @@ if __name__ == "__main__":
     optimizer = optim.Adam(ai.parameters(), lr=0.001)
     criterion = nn.MSELoss()
 
-    # Example training data (state, action, reward)
-    # State: 1D array of 9 elements (0 = empty, 1 = AI, -1 = opponent)
-    # Action: Integer representing the move (0-8)
-    # Reward: Float representing the reward for the action
     game_data = [
         ([0, 0, 0, 0, 1, 0, 0, -1, 0], 6, 1.0),
         ([1, -1, 0, 0, 1, 0, 0, -1, 0], 2, 0.5),
@@ -83,5 +86,5 @@ if __name__ == "__main__":
 
     # Example game state
     current_state = [0, 0, 0, 0, 1, 0, 0, -1, 0]
-    move = choose_move(ai, current_state)
+    move = choose_move(ai, current_state, criterion=criterion)
     print(f"AI chooses move: {move}")

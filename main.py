@@ -39,13 +39,15 @@ class Tic_Tac_Toe():
         self.O_score = 0
         self.tie_score = 0
 
-        # Inicializáljuk az AI-t
-        self.ai_model = TicTacToeAI()
-        self.optimizer = optim.Adam(self.ai_model.parameters(), lr=0.001)
-        self.criterion = nn.MSELoss()
-        self.epsilon = 0.5  # Epsilon-greedy stratégia
 
-        # Tanítási adatok
+        self.ai_X = TicTacToeAI()  # X játékos AI
+        self.ai_O = TicTacToeAI()  # O játékos AI
+        self.optimizer_X = optim.Adam(self.ai_X.parameters(), lr=0.001)
+        self.optimizer_O = optim.Adam(self.ai_O.parameters(), lr=0.001)
+        self.criterion = nn.MSELoss()
+
+        self.epsilon = 1.0  # Kezdetben teljesen véletlenszerű lépések
+
         self.game_data = []
         self.train_data = []
 
@@ -69,7 +71,8 @@ class Tic_Tac_Toe():
         self.tie = False
         self.X_wins = False
         self.O_wins = False
-        self.game_data = []  # Töröljük a korábbi játék adatait
+        self.game_data = [] 
+        self.click()
 
     def draw_O(self, logical_position):
         logical_position = np.array(logical_position)
@@ -88,23 +91,28 @@ class Tic_Tac_Toe():
                                 fill=symbol_X_color)
 
     def display_gameover(self):
-        if self.X_wins:
+        if self.is_winner('X'):
+            self.X_wins = True
             self.X_score += 1
             text = 'Winner: Player 1 (X)'
             color = symbol_X_color
             reward = -1  # AI veszített
-        elif self.O_wins:
+        elif self.is_winner('O'):
+            self.O_wins = True
             self.O_score += 1
             text = 'Winner: AI (O)'
             color = symbol_O_color
             reward = 1  # AI nyert
-        else:
+        elif self.is_tie():
             self.tie_score += 1
-            text = 'Its a tie'
+            text = 'It\'s a tie'
             color = 'gray'
             reward = 0  # Döntetlen
+        else:
+            text = 'Game Over'
+            color = 'gray'
+            reward = 0
 
-        # Frissítsük a tanítási adatokat a jutalommal
         for state, action in self.game_data:
             self.train_data.append((state, action, reward))
 
@@ -127,8 +135,10 @@ class Tic_Tac_Toe():
 
         self.reset_board = True
 
-        # Tanítsuk a modellt a játék végén
         self.train_ai_model()
+        self.click()
+
+
 
     def train_ai_model(self):
         if not self.train_data:
@@ -142,15 +152,27 @@ class Tic_Tac_Toe():
                 target[action] = reward
             target_tensor = target.unsqueeze(0)
 
-            self.optimizer.zero_grad()
-            output = self.ai_model(state_tensor)
-            loss = self.criterion(output, target_tensor)
-            loss.backward()
-            self.optimizer.step()
-            # Kiírjuk a veszteséget
-            print(f"Loss: {loss.item()}")
+            # X AI optimizer
+            self.optimizer_X.zero_grad()
+            output_X = self.ai_X(state_tensor)
+            loss_X = self.criterion(output_X, target_tensor)
+            loss_X.backward()
+            self.optimizer_X.step()
 
-        self.train_data = []  # Töröljük a tanítási adatokat a következő játékhoz
+
+            print(f"Loss for X AI: {loss_X.item()}")
+
+            # O AI optimizer
+            self.optimizer_O.zero_grad()
+            output_O = self.ai_O(state_tensor)
+            loss_O = self.criterion(output_O, target_tensor)
+            loss_O.backward()
+            self.optimizer_O.step()
+
+        self.train_data = []  
+
+        # Loss szám újra megjelenítése
+        print("Training completed. Loss values have been updated.")
 
     def convert_logical_to_grid_position(self, logical_position):
         logical_position = np.array(logical_position, dtype=int)
@@ -166,17 +188,17 @@ class Tic_Tac_Toe():
     def is_winner(self, player_mark):
         player = -1 if player_mark == 'X' else 1
 
-        # Three in a row
+        # Ellenőrizzük a sorokat és oszlopokat
         for i in range(3):
-            if self.board_status[i][0] == self.board_status[i][1] == self.board_status[i][2] == player:
+            if all(self.board_status[i, :] == player):  # Sorok
                 return True
-            if self.board_status[0][i] == self.board_status[1][i] == self.board_status[2][i] == player:
+            if all(self.board_status[:, i] == player):  # Oszlopok
                 return True
 
-        # Diagonals
-        if self.board_status[0][0] == self.board_status[1][1] == self.board_status[2][2] == player:
+        # Ellenőrizzük az átlókat
+        if self.board_status[0, 0] == self.board_status[1, 1] == self.board_status[2, 2] == player:
             return True
-        if self.board_status[0][2] == self.board_status[1][1] == self.board_status[2][0] == player:
+        if self.board_status[0, 2] == self.board_status[1, 1] == self.board_status[2, 0] == player:
             return True
 
         return False
@@ -189,56 +211,69 @@ class Tic_Tac_Toe():
             return True
         return False
 
-    def click(self, event):
-        grid_position = [event.x, event.y]
-        logical_position = self.convert_grid_to_logical_position(grid_position)
+    def click(self, event=None):
+        if not self.reset_board:
+            while not self.is_gameover():
+                # X AI lépése
+                if self.player_X_turns:
+                    flat_board = [
+                        0 if cell == 0 else (1 if cell == 1 else -1)
+                        for cell in self.board_status.flatten()
+                    ]
+                    move = choose_move(self.ai_X, flat_board, self.epsilon, self.criterion)
+                    if move is not None:
+                        logical_position = divmod(move, 3)
+                        self.draw_X(logical_position)
+                        self.board_status[logical_position[0]][logical_position[1]] = -1
 
-        if not self.reset_board and not self.gameover:
-            if self.player_X_turns:
-                if not self.is_grid_occupied(logical_position):
-                    self.draw_X(logical_position)
-                    self.board_status[logical_position[0]][logical_position[1]] = -1
-                    self.player_X_turns = not self.player_X_turns
-                    self.window.update_idletasks()
 
-                    # Ellenőrizzük, hogy a játékos nyert-e
-                    if self.is_winner('X'):
-                        self.X_wins = True
-                        self.gameover = True
-                        self.display_gameover()
-                        return
-            
-            # AI lépése
-            if not self.player_X_turns and not self.reset_board and not self.gameover:
-                flat_board = [0 if cell == 0 else (1 if cell == 1 else -1) for cell in self.board_status.flatten()]
-                move = choose_move(self.ai_model, flat_board, self.epsilon)
-                if move is not None:
-                    logical_position = divmod(move, 3)
-                    self.draw_O(logical_position)
-                    self.board_status[logical_position[0]][logical_position[1]] = 1
-                    self.player_X_turns = not self.player_X_turns
-                    self.window.update_idletasks()
+                        flat_board = [
+                            0 if cell == 0 else (1 if cell == 1 else -1)
+                            for cell in self.board_status.flatten()
+                        ]
+                        self.game_data.append((flat_board, move))
 
-                    # Jegyezzük fel a lépést a tanításhoz
-                    self.game_data.append((flat_board, move))
+                        # Ellenőrizzük, hogy X nyert-e
+                        if self.is_winner('X'):
+                            self.X_wins = True
+                            break
 
-                    # Tanítsuk az AI-t az aktuális lépés alapján
-                    self.train_ai_model()
+                        self.player_X_turns = not self.player_X_turns
+                        self.window.update_idletasks()
+                        time.sleep(0.1)
 
-                    # Ellenőrizzük, hogy az AI nyert-e
-                    if self.is_winner('O'):
-                        self.O_wins = True
-                        self.gameover = True
-                        self.display_gameover()
-                        return
+                # O AI lépése
+                if not self.player_X_turns and not self.reset_board:
+                    flat_board = [
+                        0 if cell == 0 else (1 if cell == 1 else -1)
+                        for cell in self.board_status.flatten()
+                    ]
+                    move = choose_move(self.ai_O, flat_board, self.epsilon, self.criterion)
+                    if move is not None:
+                        logical_position = divmod(move, 3)
+                        self.draw_O(logical_position)
+                        self.board_status[logical_position[0]][logical_position[1]] = 1
+  # Frissítsük a game_data-t az aktuális állapottal és akcióval
+                        flat_board = [
+                            0 if cell == 0 else (1 if cell == 1 else -1)
+                            for cell in self.board_status.flatten()
+                        ]
+                        self.game_data.append((flat_board, move))
 
-                # Ellenőrizzük, hogy döntetlen lett-e
-                if self.is_tie():
-                    self.tie = True
-                    self.gameover = True
-                    self.display_gameover()
-                    return
+                        # Ellenőrizzük, hogy O nyert-e
+                        if self.is_winner('O'):
+                            self.O_wins = True
+                            break
 
+                        self.player_X_turns = not self.player_X_turns
+                        self.window.update_idletasks()
+                        time.sleep(0.1) 
+
+            # Ellenőrizzük, hogy vége van-e a játéknak
+            if self.is_gameover():
+                self.window.update_idletasks()
+                time.sleep(2)
+                self.display_gameover()
         else:
             self.play_again()
 
